@@ -1,1 +1,2 @@
-pub const LAYER_NAME: &str = "infrastructure";
+pub mod database;
+pub mod error;
