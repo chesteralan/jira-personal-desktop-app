@@ -18,6 +18,7 @@ interface NavItemProps {
   view: AppView;
   active: boolean;
   collapsed: boolean;
+  shortcut?: string | undefined;
   onClick: () => void;
 }
 
@@ -27,6 +28,7 @@ function NavItem({
   view,
   active,
   collapsed,
+  shortcut,
   onClick,
 }: NavItemProps): React.JSX.Element {
   return (
@@ -44,7 +46,16 @@ function NavItem({
       title={collapsed ? label : undefined}
     >
       {icon}
-      {collapsed ? null : label}
+      {collapsed ? null : (
+        <>
+          <span className="flex-1 text-left">{label}</span>
+          {shortcut ? (
+            <kbd className="ml-auto text-[10px] text-muted-foreground/60">
+              {shortcut}
+            </kbd>
+          ) : null}
+        </>
+      )}
     </button>
   );
 }
@@ -61,18 +72,21 @@ export function Sidebar(): React.JSX.Element {
     label: string;
     view: AppView;
     section: "work" | "other";
+    shortcut?: string;
   }> = [
     {
       icon: <LayoutDashboard size={17} />,
       label: "Today",
       view: "today",
       section: "work",
+      shortcut: "\u2318 1",
     },
     {
       icon: <CircleDot size={17} />,
       label: "My Tasks",
       view: "tasks",
       section: "work",
+      shortcut: "\u2318 2",
     },
     {
       icon: <CheckCircle2 size={17} />,
@@ -85,6 +99,7 @@ export function Sidebar(): React.JSX.Element {
       label: "Boards",
       view: "boards",
       section: "work",
+      shortcut: "\u2318 3",
     },
     {
       icon: <Search size={17} />,
@@ -97,6 +112,7 @@ export function Sidebar(): React.JSX.Element {
       label: "Settings",
       view: "settings",
       section: "other",
+      shortcut: "\u2318 ,",
     },
   ];
 
@@ -158,6 +174,7 @@ export function Sidebar(): React.JSX.Element {
             key={item.view}
             label={item.label}
             onClick={() => setActiveView(item.view)}
+            shortcut={item.shortcut}
             view={item.view}
           />
         ))}
@@ -177,6 +194,7 @@ export function Sidebar(): React.JSX.Element {
             key={item.view}
             label={item.label}
             onClick={() => setActiveView(item.view)}
+            shortcut={item.shortcut}
             view={item.view}
           />
         ))}

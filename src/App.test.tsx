@@ -61,6 +61,13 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(() => Promise.resolve(() => {})),
 }));
 
+/** Helper to find a sidebar nav button by its data-view attribute. */
+function getNavButton(view: string): HTMLElement {
+  const btn = document.querySelector(`button[data-view="${view}"]`);
+  if (!btn) throw new Error(`Nav button for view "${view}" not found`);
+  return btn as HTMLElement;
+}
+
 function renderApp(): void {
   render(
     <ThemeProvider>
@@ -83,8 +90,7 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
 
-    const settingsButton = screen.getByRole("button", { name: "Settings" });
-    await user.click(settingsButton);
+    await user.click(getNavButton("settings"));
 
     await waitFor(() => {
       expect(screen.getByText("Jira Connection")).toBeInTheDocument();
@@ -105,8 +111,7 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
 
-    const boardsButton = screen.getByRole("button", { name: "Boards" });
-    await user.click(boardsButton);
+    await user.click(getNavButton("boards"));
 
     await waitFor(() => {
       expect(
@@ -119,8 +124,7 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
 
-    const settingsButton = screen.getByRole("button", { name: "Settings" });
-    await user.click(settingsButton);
+    await user.click(getNavButton("settings"));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Jira Cloud URL")).toBeInTheDocument();
@@ -136,8 +140,7 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
 
-    const settingsButton = screen.getByRole("button", { name: "Settings" });
-    await user.click(settingsButton);
+    await user.click(getNavButton("settings"));
 
     await waitFor(() => {
       expect(
@@ -155,5 +158,12 @@ describe("App", () => {
         screen.getByRole("button", { name: "Connect with OAuth" }),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows keyboard shortcut hints in sidebar", () => {
+    renderApp();
+    // Shortcuts are rendered as <kbd> elements
+    const kbds = document.querySelectorAll("kbd");
+    expect(kbds.length).toBeGreaterThan(0);
   });
 });

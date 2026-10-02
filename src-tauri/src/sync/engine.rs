@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Notify;
 use tokio::time::{interval, Duration};
 use tracing::{error, info, warn};
@@ -95,6 +95,7 @@ async fn run_sync_cycle(app: &AppHandle, db: &Database) {
                     None,
                     Some(format!("Sync error: {e}")),
                 );
+                notify_if_background(app, "Sync failed", &format!("{e}"));
             }
             return;
         }
@@ -131,6 +132,9 @@ async fn run_sync_cycle(app: &AppHandle, db: &Database) {
     info!("Background sync complete: {count} issues");
 
     emit_status(app, SyncState::Success, Some(now), Some(count), None);
+
+    // Send a desktop notification if the window is not focused.
+    notify_if_background(app, "Sync complete", &format!("{count} issues synced"));
 }
 
 fn emit_status(
@@ -148,5 +152,19 @@ fn emit_status(
     };
     if let Err(e) = app.emit(SYNC_EVENT, &status) {
         warn!("Failed to emit sync event: {e}");
+    }
+}
+
+/// Send a desktop notification only when the main window is not focused.
+fn notify_if_background(app: &AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+
+    let focused = app
+        .get_webview_window("main")
+        .and_then(|w| w.is_focused().ok())
+        .unwrap_or(false);
+
+    if !focused {
+        let _ = app.notification().builder().title(title).body(body).show();
     }
 }

@@ -3,12 +3,15 @@ pub mod commands;
 pub mod domain;
 pub mod infrastructure;
 pub mod sync;
+pub mod tray;
+pub mod window_state;
 
 use std::fs;
 use std::sync::Arc;
 
 use infrastructure::database::Database;
 use sync::engine::SyncEngine;
+use tauri::Manager;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -21,8 +24,6 @@ fn init_database(app: &tauri::App) -> Database {
     let db_path = app_dir.join("jira-personal.db");
     Database::open(&db_path).expect("failed to open database")
 }
-
-use tauri::Manager;
 
 /// Default background sync interval in seconds (5 minutes).
 const DEFAULT_SYNC_INTERVAL: u64 = 300;
@@ -38,6 +39,27 @@ pub fn run() {
     info!("Starting Jira Personal");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+
+                    if event.state() == ShortcutState::Pressed
+                        && shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::KeyJ)
+                    {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let db = init_database(app);
             let db_arc = Arc::new(db);
@@ -45,9 +67,36 @@ pub fn run() {
             // Share the Arc<Database> as managed state.
             app.manage(db_arc.clone());
 
+            // Restore window position/size from last session.
+            if let Some(window) = app.get_webview_window("main") {
+                window_state::restore(&window, &db_arc);
+                window_state::attach_save_handlers(&window, db_arc.clone());
+            }
+
             // Spawn background sync engine.
             let engine = SyncEngine::spawn(app.handle().clone(), db_arc, DEFAULT_SYNC_INTERVAL);
             app.manage(engine);
+
+            // Set up system tray.
+            tray::setup_tray(app.handle())?;
+
+            // Register global shortcut: Cmd+Shift+J (macOS) / Ctrl+Shift+J (Win/Linux).
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                let shortcut = tauri_plugin_global_shortcut::Shortcut::new(
+                    Some(
+                        tauri_plugin_global_shortcut::Modifiers::SUPER
+                            | tauri_plugin_global_shortcut::Modifiers::SHIFT,
+                    ),
+                    tauri_plugin_global_shortcut::Code::KeyJ,
+                );
+                if let Err(e) = app.global_shortcut().register(shortcut) {
+                    tracing::warn!("Failed to register global shortcut Cmd+Shift+J: {e}");
+                } else {
+                    info!("Global shortcut Cmd+Shift+J registered");
+                }
+            }
 
             info!("Application setup complete");
             Ok(())
