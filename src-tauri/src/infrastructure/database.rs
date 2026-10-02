@@ -70,6 +70,13 @@ impl Database {
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS saved_boards (
+                board_id     INTEGER PRIMARY KEY,
+                name         TEXT NOT NULL,
+                board_type   TEXT NOT NULL,
+                project_key  TEXT
+            );
             ",
         )?;
 
@@ -350,6 +357,50 @@ impl Database {
         )?;
         Ok(())
     }
+
+    // ── Saved boards ────────────────────────────────────────────────
+
+    /// Save a board for quick access.
+    pub fn save_board(&self, board: &crate::domain::board::SavedBoard) -> Result<(), AppError> {
+        let conn = self.conn.lock().expect("database lock poisoned");
+        conn.execute(
+            "INSERT OR REPLACE INTO saved_boards (board_id, name, board_type, project_key)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![
+                board.board_id,
+                board.name,
+                board.board_type,
+                board.project_key
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Remove a saved board.
+    pub fn unsave_board(&self, board_id: u32) -> Result<bool, AppError> {
+        let conn = self.conn.lock().expect("database lock poisoned");
+        let deleted = conn.execute("DELETE FROM saved_boards WHERE board_id = ?1", [board_id])?;
+        Ok(deleted > 0)
+    }
+
+    /// List all saved boards.
+    pub fn list_saved_boards(&self) -> Result<Vec<crate::domain::board::SavedBoard>, AppError> {
+        let conn = self.conn.lock().expect("database lock poisoned");
+        let mut stmt =
+            conn.prepare("SELECT board_id, name, board_type, project_key FROM saved_boards")?;
+        let boards = stmt
+            .query_map([], |row| {
+                Ok(crate::domain::board::SavedBoard {
+                    board_id: row.get(0)?,
+                    name: row.get(1)?,
+                    board_type: row.get(2)?,
+                    project_key: row.get(3)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(boards)
+    }
 }
 
 #[cfg(test)]
@@ -507,5 +558,30 @@ mod tests {
 
         let keys = db.list_all_issue_keys().unwrap();
         assert_eq!(keys, vec!["TPT-13"]);
+    }
+
+    #[test]
+    fn saved_boards_crud() {
+        use crate::domain::board::SavedBoard;
+
+        let db = test_db();
+        assert!(db.list_saved_boards().unwrap().is_empty());
+
+        let board = SavedBoard {
+            board_id: 42,
+            name: "Sprint Board".to_string(),
+            board_type: "scrum".to_string(),
+            project_key: Some("TPT".to_string()),
+        };
+        db.save_board(&board).unwrap();
+
+        let boards = db.list_saved_boards().unwrap();
+        assert_eq!(boards.len(), 1);
+        assert_eq!(boards[0].board_id, 42);
+        assert_eq!(boards[0].name, "Sprint Board");
+
+        assert!(db.unsave_board(42).unwrap());
+        assert!(!db.unsave_board(99).unwrap());
+        assert!(db.list_saved_boards().unwrap().is_empty());
     }
 }

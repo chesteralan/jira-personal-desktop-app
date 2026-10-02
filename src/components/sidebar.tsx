@@ -2,6 +2,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   CircleDot,
+  KanbanSquare,
   LayoutDashboard,
   Search,
   Settings2,
@@ -77,6 +78,12 @@ export function Sidebar(): React.JSX.Element {
       icon: <CheckCircle2 size={17} />,
       label: "Review",
       view: "review",
+      section: "work",
+    },
+    {
+      icon: <KanbanSquare size={17} />,
+      label: "Boards",
+      view: "boards",
       section: "work",
     },
     {

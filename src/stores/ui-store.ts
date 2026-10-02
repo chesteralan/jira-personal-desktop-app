@@ -1,6 +1,12 @@
 import { create } from "zustand";
 
-export type AppView = "today" | "tasks" | "review" | "search" | "settings";
+export type AppView =
+  | "today"
+  | "tasks"
+  | "review"
+  | "boards"
+  | "search"
+  | "settings";
 
 interface UiState {
   sidebarCollapsed: boolean;

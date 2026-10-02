@@ -150,3 +150,68 @@ export async function onSyncStatus(
     handler(event.payload);
   });
 }
+
+// ── Board types ─────────────────────────────────────────────────────
+
+export interface Board {
+  id: number;
+  name: string;
+  boardType: string;
+  projectKey: string | null;
+}
+
+export interface SavedBoard {
+  boardId: number;
+  name: string;
+  boardType: string;
+  projectKey: string | null;
+}
+
+export interface IssueTransition {
+  id: string;
+  name: string;
+}
+
+// ── Board commands ──────────────────────────────────────────────────
+
+export async function listBoards(): Promise<Board[]> {
+  return invoke<Board[]>("list_boards");
+}
+
+export async function listSavedBoards(): Promise<SavedBoard[]> {
+  return invoke<SavedBoard[]>("list_saved_boards");
+}
+
+export async function saveBoard(board: SavedBoard): Promise<void> {
+  return invoke<void>("save_board", { board });
+}
+
+export async function unsaveBoard(boardId: number): Promise<boolean> {
+  return invoke<boolean>("unsave_board", { boardId });
+}
+
+export async function getBoardIssues(boardId: number): Promise<IssueView[]> {
+  return invoke<IssueView[]>("get_board_issues", { boardId });
+}
+
+// ── Quick action commands ───────────────────────────────────────────
+
+export async function getTransitions(
+  issueKey: string,
+): Promise<IssueTransition[]> {
+  return invoke<IssueTransition[]>("get_transitions", { issueKey });
+}
+
+export async function transitionIssue(
+  issueKey: string,
+  transitionId: string,
+): Promise<void> {
+  return invoke<void>("transition_issue", { issueKey, transitionId });
+}
+
+export async function addComment(
+  issueKey: string,
+  body: string,
+): Promise<void> {
+  return invoke<void>("add_comment", { issueKey, body });
+}

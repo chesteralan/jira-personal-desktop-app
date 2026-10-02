@@ -167,7 +167,11 @@ export function TodayView(): React.JSX.Element {
         ) : (
           <div className="grid grid-cols-2 gap-4">
             {issues.map((issue) => (
-              <IssueCard issue={issue} key={issue.id} />
+              <IssueCard
+                issue={issue}
+                key={issue.id}
+                onActionComplete={() => void refresh()}
+              />
             ))}
           </div>
         )}

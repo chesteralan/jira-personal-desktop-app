@@ -64,6 +64,14 @@ pub fn run() {
             commands::auth::jira_disconnect,
             commands::auth::jira_sync,
             commands::auth::jira_restore_session,
+            commands::boards::list_boards,
+            commands::boards::list_saved_boards,
+            commands::boards::save_board,
+            commands::boards::unsave_board,
+            commands::boards::get_board_issues,
+            commands::boards::get_transitions,
+            commands::boards::transition_issue,
+            commands::boards::add_comment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jira Personal");

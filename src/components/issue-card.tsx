@@ -1,11 +1,14 @@
+import { useState } from "react";
 import {
   AlertCircle,
   ArrowUp,
   ArrowDown,
+  ChevronRight,
   Minus,
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QuickActions } from "@/components/quick-actions";
 import type { IssueView, IssuePriority, IssueStatus } from "@/services/ipc";
 
 const statusLabels: Record<IssueStatus, string> = {
@@ -72,9 +75,14 @@ function formatDueDate(dateStr: string): string | null {
 
 interface IssueCardProps {
   issue: IssueView;
+  onActionComplete?: () => void;
 }
 
-export function IssueCard({ issue }: IssueCardProps): React.JSX.Element {
+export function IssueCard({
+  issue,
+  onActionComplete,
+}: IssueCardProps): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
   const dueLabel = issue.dueDate ? formatDueDate(issue.dueDate) : null;
 
   return (
@@ -143,6 +151,22 @@ export function IssueCard({ issue }: IssueCardProps): React.JSX.Element {
             </span>
           ))}
         </div>
+      ) : null}
+      <button
+        className="mt-3 flex w-full items-center justify-center gap-1 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <ChevronRight
+          className={cn("transition-transform", expanded && "rotate-90")}
+          size={12}
+        />
+        {expanded ? "Hide actions" : "Quick actions"}
+      </button>
+      {expanded ? (
+        <QuickActions
+          issueKey={issue.key}
+          onActionComplete={onActionComplete}
+        />
       ) : null}
     </article>
   );

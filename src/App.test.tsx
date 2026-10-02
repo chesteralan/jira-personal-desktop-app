@@ -101,6 +101,20 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("navigates to boards view", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    const boardsButton = screen.getByRole("button", { name: "Boards" });
+    await user.click(boardsButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Connect to Jira in Settings to browse boards."),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("shows connect form in settings when disconnected", async () => {
     const user = userEvent.setup();
     renderApp();

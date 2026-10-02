@@ -74,3 +74,45 @@ pub struct JiraAssignee {
 pub struct JiraSprint {
     pub name: String,
 }
+
+// ── Agile / Board types ─────────────────────────────────────────────
+
+/// GET /rest/agile/1.0/board (paginated wrapper)
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JiraBoardListResponse {
+    pub max_results: u32,
+    pub start_at: u32,
+    pub total: Option<u32>,
+    pub is_last: Option<bool>,
+    pub values: Vec<JiraBoard>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct JiraBoard {
+    pub id: u32,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub board_type: String,
+    pub location: Option<JiraBoardLocation>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JiraBoardLocation {
+    pub project_key: Option<String>,
+}
+
+// ── Transitions ─────────────────────────────────────────────────────
+
+/// GET /rest/api/3/issue/{issueKey}/transitions
+#[derive(Debug, Deserialize)]
+pub struct JiraTransitionsResponse {
+    pub transitions: Vec<JiraTransition>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct JiraTransition {
+    pub id: String,
+    pub name: String,
+}

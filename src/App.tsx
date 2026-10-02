@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { TodayView } from "@/features/today/today-view";
 import { TasksView } from "@/features/tasks/tasks-view";
+import { BoardsView } from "@/features/boards/boards-view";
 import { SettingsView } from "@/features/settings/settings-view";
 import { useUiStore, type AppView } from "@/stores/ui-store";
 import { useWorkspaceStore, initSyncListener } from "@/stores/workspace-store";
@@ -15,6 +16,8 @@ function ViewRouter({ view }: { view: AppView }): React.JSX.Element {
     case "review":
     case "search":
       return <TasksView />;
+    case "boards":
+      return <BoardsView />;
     case "settings":
       return <SettingsView />;
   }

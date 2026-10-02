@@ -5,7 +5,8 @@ use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYP
 use reqwest::Client;
 use tracing::{debug, info};
 
-use super::types::{JiraSearchResponse, JiraUser};
+use super::types::{JiraBoardListResponse, JiraSearchResponse, JiraTransitionsResponse, JiraUser};
+use crate::domain::board::{Board, IssueTransition};
 use crate::domain::issue::{Issue, IssuePriority, IssueStatus};
 use crate::infrastructure::error::AppError;
 
@@ -128,6 +129,230 @@ impl JiraClient {
 
         info!("Fetched {} issues from Jira", all_issues.len());
         Ok(all_issues)
+    }
+
+    // ── Boards ──────────────────────────────────────────────────────
+
+    /// Fetch all boards visible to the user from the Agile API.
+    pub async fn fetch_boards(&self) -> Result<Vec<Board>, AppError> {
+        let mut all_boards = Vec::new();
+        let mut start_at: u32 = 0;
+        let page_size: u32 = 50;
+
+        loop {
+            let url = format!(
+                "{}/rest/agile/1.0/board?startAt={}&maxResults={}",
+                self.base_url, start_at, page_size,
+            );
+            debug!("GET {url}");
+
+            let resp = self
+                .client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| AppError::Internal(format!("Network error: {e}")))?;
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_else(|_| "no body".to_string());
+                return Err(AppError::Internal(format!(
+                    "Jira boards failed ({status}): {body}"
+                )));
+            }
+
+            let list: JiraBoardListResponse = resp
+                .json()
+                .await
+                .map_err(|e| AppError::Internal(format!("Failed to parse boards: {e}")))?;
+
+            for jb in &list.values {
+                all_boards.push(Board {
+                    id: jb.id,
+                    name: jb.name.clone(),
+                    board_type: jb.board_type.clone(),
+                    project_key: jb.location.as_ref().and_then(|l| l.project_key.clone()),
+                });
+            }
+
+            if list.is_last == Some(true) {
+                break;
+            }
+            let fetched = start_at + list.values.len() as u32;
+            if list.total.is_some_and(|t| fetched >= t) || list.values.is_empty() {
+                break;
+            }
+            start_at = fetched;
+        }
+
+        info!("Fetched {} boards from Jira", all_boards.len());
+        Ok(all_boards)
+    }
+
+    /// Fetch issues belonging to a specific board.
+    pub async fn fetch_board_issues(&self, board_id: u32) -> Result<Vec<Issue>, AppError> {
+        let mut all_issues = Vec::new();
+        let mut start_at: u32 = 0;
+        let page_size: u32 = 50;
+
+        loop {
+            let url = format!(
+                "{}/rest/agile/1.0/board/{}/issue?startAt={}&maxResults={}&fields={}",
+                self.base_url, board_id, start_at, page_size, SEARCH_FIELDS,
+            );
+            debug!("GET {url}");
+
+            let resp = self
+                .client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| AppError::Internal(format!("Network error: {e}")))?;
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_else(|_| "no body".to_string());
+                return Err(AppError::Internal(format!(
+                    "Board issues failed ({status}): {body}"
+                )));
+            }
+
+            let search: JiraSearchResponse = resp
+                .json()
+                .await
+                .map_err(|e| AppError::Internal(format!("Failed to parse board issues: {e}")))?;
+
+            for ji in &search.issues {
+                all_issues.push(jira_issue_to_domain(ji, &self.base_url));
+            }
+
+            let fetched = start_at + search.issues.len() as u32;
+            if fetched >= search.total || search.issues.is_empty() {
+                break;
+            }
+            start_at = fetched;
+        }
+
+        info!(
+            "Fetched {} issues from board {}",
+            all_issues.len(),
+            board_id
+        );
+        Ok(all_issues)
+    }
+
+    // ── Quick actions ───────────────────────────────────────────────
+
+    /// Get available transitions for an issue.
+    pub async fn get_transitions(&self, issue_key: &str) -> Result<Vec<IssueTransition>, AppError> {
+        let url = format!(
+            "{}/rest/api/3/issue/{}/transitions",
+            self.base_url, issue_key
+        );
+        debug!("GET {url}");
+
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("Network error: {e}")))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_else(|_| "no body".to_string());
+            return Err(AppError::Internal(format!(
+                "Transitions failed ({status}): {body}"
+            )));
+        }
+
+        let data: JiraTransitionsResponse = resp
+            .json()
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to parse transitions: {e}")))?;
+
+        Ok(data
+            .transitions
+            .into_iter()
+            .map(|t| IssueTransition {
+                id: t.id,
+                name: t.name,
+            })
+            .collect())
+    }
+
+    /// Transition an issue to a new status.
+    pub async fn transition_issue(
+        &self,
+        issue_key: &str,
+        transition_id: &str,
+    ) -> Result<(), AppError> {
+        let url = format!(
+            "{}/rest/api/3/issue/{}/transitions",
+            self.base_url, issue_key
+        );
+        let body = serde_json::json!({
+            "transition": { "id": transition_id }
+        });
+        debug!("POST {url}");
+
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("Network error: {e}")))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body_text = resp.text().await.unwrap_or_else(|_| "no body".to_string());
+            return Err(AppError::Internal(format!(
+                "Transition failed ({status}): {body_text}"
+            )));
+        }
+
+        info!("Transitioned {issue_key} via transition {transition_id}");
+        Ok(())
+    }
+
+    /// Add a comment to an issue.
+    pub async fn add_comment(&self, issue_key: &str, body_text: &str) -> Result<(), AppError> {
+        let url = format!("{}/rest/api/3/issue/{}/comment", self.base_url, issue_key);
+        // Jira Cloud v3 uses ADF (Atlassian Document Format) for comments.
+        let body = serde_json::json!({
+            "body": {
+                "type": "doc",
+                "version": 1,
+                "content": [{
+                    "type": "paragraph",
+                    "content": [{
+                        "type": "text",
+                        "text": body_text,
+                    }]
+                }]
+            }
+        });
+        debug!("POST {url}");
+
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("Network error: {e}")))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let resp_body = resp.text().await.unwrap_or_else(|_| "no body".to_string());
+            return Err(AppError::Internal(format!(
+                "Comment failed ({status}): {resp_body}"
+            )));
+        }
+
+        info!("Added comment to {issue_key}");
+        Ok(())
     }
 }
 
