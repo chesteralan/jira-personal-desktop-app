@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Clock3, Database, RefreshCw } from "lucide-react";
+import { Clock3, Database, Loader2, RefreshCw } from "lucide-react";
 import { Header } from "@/components/header";
 import { IssueCard } from "@/components/issue-card";
 import { useIssueStore } from "@/stores/issue-store";
@@ -11,7 +11,9 @@ export function TodayView(): React.JSX.Element {
   const loading = useIssueStore((s) => s.loading);
   const refresh = useIssueStore((s) => s.refresh);
   const info = useWorkspaceStore((s) => s.info);
+  const syncing = useWorkspaceStore((s) => s.syncing);
   const fetchInfo = useWorkspaceStore((s) => s.fetchInfo);
+  const sync = useWorkspaceStore((s) => s.sync);
   const seedData = useWorkspaceStore((s) => s.seedData);
 
   useEffect(() => {
@@ -24,6 +26,16 @@ export function TodayView(): React.JSX.Element {
     await refresh();
   };
 
+  const handleSync = async (): Promise<void> => {
+    try {
+      await sync();
+      await refresh();
+    } catch {
+      // Error displayed via store
+    }
+  };
+
+  const isConnected = info.connectionStatus === "connected";
   const needsAttention = counts.todo + counts.review;
 
   return (
@@ -36,9 +48,15 @@ export function TodayView(): React.JSX.Element {
         className="mt-7 flex items-center justify-between rounded-lg border bg-card px-4 py-3"
       >
         <div className="flex items-center gap-2 text-sm">
-          <span className="size-2 rounded-full bg-success" />
+          <span
+            className={`size-2 rounded-full ${isConnected ? "bg-success" : "bg-muted-foreground"}`}
+          />
           <span className="font-medium">
-            {info.issueCount > 0 ? "Local cache ready" : "No issues cached"}
+            {isConnected
+              ? "Connected to Jira"
+              : info.issueCount > 0
+                ? "Local cache ready"
+                : "Not connected"}
           </span>
           {info.lastSyncedAt ? (
             <span className="text-muted-foreground">
@@ -48,7 +66,7 @@ export function TodayView(): React.JSX.Element {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          {info.issueCount === 0 ? (
+          {!isConnected && info.issueCount === 0 ? (
             <button
               className="flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
               onClick={() => void handleSeed()}
@@ -57,9 +75,17 @@ export function TodayView(): React.JSX.Element {
               Seed Mock Data
             </button>
           ) : null}
-          <button className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
-            <RefreshCw size={14} />
-            Sync
+          <button
+            className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            disabled={!isConnected || syncing}
+            onClick={() => void handleSync()}
+          >
+            {syncing ? (
+              <Loader2 className="animate-spin" size={14} />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {syncing ? "Syncing..." : "Sync"}
           </button>
         </div>
       </section>
@@ -88,9 +114,9 @@ export function TodayView(): React.JSX.Element {
               Active work
             </h2>
             <p className="text-sm text-muted-foreground">
-              {info.connectionStatus === "connected"
-                ? "Your personal Jira queue from the local cache."
-                : "Seed mock data or connect Jira in M3."}
+              {isConnected
+                ? "Your assigned Jira issues."
+                : "Connect to Jira in Settings or seed mock data."}
             </p>
           </div>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -103,7 +129,7 @@ export function TodayView(): React.JSX.Element {
         ) : issues.length === 0 ? (
           <div className="rounded-lg border bg-card p-12 text-center">
             <p className="text-muted-foreground">
-              No issues yet. Seed mock data to preview the workspace.
+              No issues yet. Connect to Jira or seed mock data to get started.
             </p>
           </div>
         ) : (

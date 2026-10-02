@@ -100,3 +100,33 @@ export async function getWorkspaceInfo(): Promise<WorkspaceInfo> {
 export async function seedMockData(): Promise<string> {
   return invoke<string>("seed_mock_data");
 }
+
+// ── Auth commands ─────────────────────────────────────────────────────
+
+export interface ConnectInput {
+  baseUrl: string;
+  email: string;
+  apiToken: string;
+}
+
+export interface ConnectResult {
+  displayName: string;
+  email: string | null;
+  issueCount: number;
+}
+
+export async function jiraConnect(input: ConnectInput): Promise<ConnectResult> {
+  return invoke<ConnectResult>("jira_connect", { input });
+}
+
+export async function jiraDisconnect(): Promise<void> {
+  return invoke<void>("jira_disconnect");
+}
+
+export async function jiraSync(): Promise<number> {
+  return invoke<number>("jira_sync");
+}
+
+export async function jiraRestoreSession(): Promise<boolean> {
+  return invoke<boolean>("jira_restore_session");
+}

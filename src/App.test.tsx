@@ -48,6 +48,8 @@ vi.mock("@tauri-apps/api/core", () => ({
           syncIntervalSecs: 300,
           activeView: "today",
         });
+      case "jira_restore_session":
+        return Promise.resolve(false);
       default:
         return Promise.resolve(null);
     }
@@ -83,7 +85,7 @@ describe("App", () => {
     await user.click(settingsButton);
 
     await waitFor(() => {
-      expect(screen.getByText("Appearance")).toBeInTheDocument();
+      expect(screen.getByText("Jira Connection")).toBeInTheDocument();
     });
   });
 
@@ -95,5 +97,22 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: "Theme: light" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows connect form in settings when disconnected", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    await user.click(settingsButton);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Jira Cloud URL")).toBeInTheDocument();
+      expect(screen.getByLabelText("Email")).toBeInTheDocument();
+      expect(screen.getByLabelText("API Token")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Connect to Jira" }),
+      ).toBeInTheDocument();
+    });
   });
 });

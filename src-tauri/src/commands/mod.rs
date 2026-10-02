@@ -1,3 +1,5 @@
+pub mod auth;
+
 use tauri::State;
 
 use crate::domain::issue::{IssueFilter, IssueView};

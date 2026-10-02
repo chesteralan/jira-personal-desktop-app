@@ -185,7 +185,7 @@ export function Sidebar(): React.JSX.Element {
           <p className="mt-1 text-xs text-muted-foreground">
             {info.connectionStatus === "connected"
               ? `${info.issueCount} issues cached`
-              : "Jira connection arrives in M3"}
+              : "Connect in Settings"}
           </p>
         </div>
       )}

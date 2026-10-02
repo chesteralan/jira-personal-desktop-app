@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Header } from "@/components/header";
+import { ConnectForm } from "@/features/settings/connect-form";
 import { useTheme, type Theme } from "@/app/theme";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import {
@@ -38,6 +39,17 @@ export function SettingsView(): React.JSX.Element {
       <Header userName={info.userDisplayName} />
 
       <div className="mt-8 max-w-2xl space-y-8">
+        {/* Jira Connection */}
+        <section>
+          <h2 className="text-lg font-semibold">Jira Connection</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Connect to your Jira Cloud instance using an API token.
+          </p>
+          <div className="mt-4">
+            <ConnectForm />
+          </div>
+        </section>
+
         {/* Appearance */}
         <section>
           <h2 className="text-lg font-semibold">Appearance</h2>
@@ -66,7 +78,7 @@ export function SettingsView(): React.JSX.Element {
         <section>
           <h2 className="text-lg font-semibold">Workspace</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Connection and sync settings.
+            Local database and sync status.
           </p>
           <div className="mt-4 rounded-lg border bg-card p-4">
             <dl className="grid grid-cols-2 gap-4 text-sm">

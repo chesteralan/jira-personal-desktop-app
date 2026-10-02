@@ -23,11 +23,12 @@ export function App(): React.JSX.Element {
   const activeView = useUiStore((s) => s.activeView);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const fetchInfo = useWorkspaceStore((s) => s.fetchInfo);
+  const restoreSession = useWorkspaceStore((s) => s.restoreSession);
 
-  // Load workspace info on mount
+  // Restore session and load workspace info on mount
   useEffect(() => {
-    void fetchInfo();
-  }, [fetchInfo]);
+    void restoreSession().then(() => fetchInfo());
+  }, [restoreSession, fetchInfo]);
 
   // Keyboard shortcut: Cmd+B to toggle sidebar
   useEffect(() => {
