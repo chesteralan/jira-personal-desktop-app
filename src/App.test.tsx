@@ -131,4 +131,29 @@ describe("App", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("shows OAuth form when OAuth tab is selected", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    await user.click(settingsButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Connect to Jira" }),
+      ).toBeInTheDocument();
+    });
+
+    const oauthTab = screen.getByRole("button", { name: "OAuth 2.0" });
+    await user.click(oauthTab);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Client ID")).toBeInTheDocument();
+      expect(screen.getByLabelText("Client Secret")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Connect with OAuth" }),
+      ).toBeInTheDocument();
+    });
+  });
 });

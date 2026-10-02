@@ -5,10 +5,14 @@ import {
   jiraDisconnect,
   jiraSync,
   jiraRestoreSession,
+  oauthStart,
+  oauthDisconnect,
   onSyncStatus,
   seedMockData,
   type ConnectInput,
   type ConnectResult,
+  type OAuthSetupInput,
+  type OAuthConnectResult,
   type SyncState,
   type SyncStatus,
   type WorkspaceInfo,
@@ -22,6 +26,7 @@ interface WorkspaceState {
   error: string | null;
   fetchInfo: () => Promise<void>;
   connect: (input: ConnectInput) => Promise<ConnectResult>;
+  oauthConnect: (input: OAuthSetupInput) => Promise<OAuthConnectResult>;
   disconnect: () => Promise<void>;
   sync: () => Promise<number>;
   restoreSession: () => Promise<boolean>;
@@ -68,10 +73,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     }
   },
 
+  oauthConnect: async (input: OAuthSetupInput) => {
+    set({ loading: true, error: null });
+    try {
+      const result = await oauthStart(input);
+      const info = await getWorkspaceInfo();
+      set({ info, loading: false });
+      return result;
+    } catch (e) {
+      set({ error: String(e), loading: false });
+      throw e;
+    }
+  },
+
   disconnect: async () => {
     set({ loading: true, error: null });
     try {
       await jiraDisconnect();
+      // Also clear OAuth if that was the method.
+      try {
+        await oauthDisconnect();
+      } catch {
+        // Ignore — may not have been OAuth.
+      }
       set({ info: defaultInfo, loading: false, syncState: "idle" });
     } catch (e) {
       set({ error: String(e), loading: false });

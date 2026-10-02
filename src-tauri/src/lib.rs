@@ -72,6 +72,9 @@ pub fn run() {
             commands::boards::get_transitions,
             commands::boards::transition_issue,
             commands::boards::add_comment,
+            commands::oauth::oauth_start,
+            commands::oauth::oauth_disconnect,
+            commands::oauth::oauth_refresh,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jira Personal");

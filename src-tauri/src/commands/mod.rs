@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod boards;
+pub mod oauth;
 
 use std::sync::Arc;
 

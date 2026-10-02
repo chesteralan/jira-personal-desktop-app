@@ -1,4 +1,4 @@
-//! Jira Cloud REST API client using API-token (Basic) authentication.
+//! Jira Cloud REST API client supporting Basic (API-token) and Bearer (OAuth) auth.
 //! Credentials are never logged, stored in SQLite, or sent to the frontend.
 
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
@@ -16,13 +16,13 @@ const SEARCH_FIELDS: &str =
 
 pub struct JiraClient {
     client: Client,
+    /// For Basic auth: `https://yourorg.atlassian.net`
+    /// For OAuth: `https://api.atlassian.com/ex/jira/{cloudId}`
     base_url: String,
 }
 
 impl JiraClient {
-    /// Create a new client for the given Jira Cloud instance.
-    /// `base_url` should be like `https://yourorg.atlassian.net`.
-    /// `email` and `api_token` are used for Basic auth.
+    /// Create a client using API-token (Basic) authentication.
     pub fn new(base_url: &str, email: &str, api_token: &str) -> Result<Self, AppError> {
         let auth_value = base64_encode(&format!("{email}:{api_token}"));
         let mut headers = HeaderMap::new();
@@ -41,12 +41,36 @@ impl JiraClient {
             .map_err(|e| AppError::Internal(format!("HTTP client error: {e}")))?;
 
         let base = base_url.trim_end_matches('/').to_string();
-        info!("Jira client configured for {}", base);
+        info!("Jira client configured for {} (Basic)", base);
 
         Ok(Self {
             client,
             base_url: base,
         })
+    }
+
+    /// Create a client using OAuth 2.0 Bearer token.
+    /// `cloud_id` is used to construct the API base URL.
+    pub fn with_oauth(access_token: &str, cloud_id: &str) -> Result<Self, AppError> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {access_token}"))
+                .map_err(|e| AppError::Internal(format!("Invalid auth header: {e}")))?,
+        );
+        headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+        let client = Client::builder()
+            .default_headers(headers)
+            .user_agent("JiraPersonal/0.1")
+            .build()
+            .map_err(|e| AppError::Internal(format!("HTTP client error: {e}")))?;
+
+        let base_url = format!("https://api.atlassian.com/ex/jira/{cloud_id}");
+        info!("Jira client configured for cloud {} (OAuth)", cloud_id);
+
+        Ok(Self { client, base_url })
     }
 
     /// Verify credentials by fetching the authenticated user.

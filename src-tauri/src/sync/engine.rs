@@ -11,9 +11,8 @@ use tokio::sync::Notify;
 use tokio::time::{interval, Duration};
 use tracing::{error, info, warn};
 
-use crate::infrastructure::credentials;
+use crate::commands::auth::make_active_client;
 use crate::infrastructure::database::Database;
-use crate::infrastructure::jira::client::JiraClient;
 use crate::sync::{SyncState, SyncStatus};
 
 /// Event name emitted to the frontend whenever sync status changes.
@@ -64,33 +63,14 @@ async fn sync_loop(app: AppHandle, db: Arc<Database>, interval_secs: u64, trigge
 }
 
 async fn run_sync_cycle(app: &AppHandle, db: &Database) {
-    // Check for credentials — if none, skip silently.
-    let creds = match credentials::load_credentials() {
-        Ok(Some(c)) => c,
-        Ok(None) => return,
-        Err(e) => {
-            warn!("Failed to load credentials for sync: {e}");
-            return;
-        }
+    // Build a client from whichever auth method is active.
+    let client = match make_active_client() {
+        Ok(c) => c,
+        Err(_) => return, // No credentials — skip silently.
     };
 
     // Emit syncing status.
     emit_status(app, SyncState::Syncing, None, None, None);
-
-    let client = match JiraClient::new(&creds.base_url, &creds.email, &creds.api_token) {
-        Ok(c) => c,
-        Err(e) => {
-            error!("Failed to create Jira client: {e}");
-            emit_status(
-                app,
-                SyncState::Error,
-                None,
-                None,
-                Some(format!("Client error: {e}")),
-            );
-            return;
-        }
-    };
 
     // Fetch issues from Jira. On network failure, preserve the cache.
     let fresh_issues = match client.fetch_my_issues().await {

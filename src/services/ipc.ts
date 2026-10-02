@@ -215,3 +215,31 @@ export async function addComment(
 ): Promise<void> {
   return invoke<void>("add_comment", { issueKey, body });
 }
+
+// ── OAuth commands ──────────────────────────────────────────────────
+
+export interface OAuthSetupInput {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface OAuthConnectResult {
+  displayName: string;
+  email: string | null;
+  issueCount: number;
+  siteUrl: string;
+}
+
+export async function oauthStart(
+  input: OAuthSetupInput,
+): Promise<OAuthConnectResult> {
+  return invoke<OAuthConnectResult>("oauth_start", { input });
+}
+
+export async function oauthDisconnect(): Promise<void> {
+  return invoke<void>("oauth_disconnect");
+}
+
+export async function oauthRefresh(): Promise<void> {
+  return invoke<void>("oauth_refresh");
+}
