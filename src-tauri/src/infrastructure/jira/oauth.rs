@@ -17,7 +17,10 @@ const TOKEN_URL: &str = "https://auth.atlassian.com/oauth/token";
 const RESOURCES_URL: &str = "https://api.atlassian.com/oauth/token/accessible-resources";
 
 /// Scopes needed for reading/writing Jira issues and boards.
-const SCOPES: &str = "read:jira-work write:jira-work read:jira-user offline_access";
+/// Classic scopes cover the Jira Platform REST API; granular scopes are
+/// required by the Jira Software (Agile) REST API for board access.
+const SCOPES: &str = "read:jira-work write:jira-work read:jira-user offline_access \
+    read:board-scope:jira-software read:project:jira read:issue-details:jira";
 
 /// Default port for the local callback server.
 const CALLBACK_PORT: u16 = 17042;
