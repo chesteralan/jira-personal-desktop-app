@@ -17,6 +17,24 @@ use crate::infrastructure::error::AppError;
 const SEARCH_FIELDS: &str =
     "summary,description,status,priority,project,assignee,reporter,labels,created,updated,duedate,sprint";
 
+/// Build an actionable error when a Jira API response indicates missing OAuth scopes.
+fn scope_error(endpoint: &str, status: reqwest::StatusCode, body: &str) -> AppError {
+    let is_scope = body.contains("scope does not match") || body.contains("scope");
+    if status == reqwest::StatusCode::UNAUTHORIZED && is_scope {
+        AppError::Auth(format!(
+            "{endpoint}: missing OAuth scopes. \
+             Add the Jira Software API (read:board-scope:jira-software, \
+             read:project:jira, read:issue-details:jira) in the Atlassian \
+             Developer Console, then disconnect and reconnect."
+        ))
+    } else if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN
+    {
+        AppError::Auth(format!("{endpoint} ({status}): {body}"))
+    } else {
+        AppError::Internal(format!("{endpoint} ({status}): {body}"))
+    }
+}
+
 pub struct JiraClient {
     client: Client,
     /// For Basic auth: `https://yourorg.atlassian.net`
@@ -185,9 +203,7 @@ impl JiraClient {
             if !resp.status().is_success() {
                 let status = resp.status();
                 let body = resp.text().await.unwrap_or_else(|_| "no body".to_string());
-                return Err(AppError::Internal(format!(
-                    "Jira boards failed ({status}): {body}"
-                )));
+                return Err(scope_error("Jira boards failed", status, &body));
             }
 
             let list: JiraBoardListResponse = resp
@@ -241,9 +257,7 @@ impl JiraClient {
             if !resp.status().is_success() {
                 let status = resp.status();
                 let body = resp.text().await.unwrap_or_else(|_| "no body".to_string());
-                return Err(AppError::Internal(format!(
-                    "Board issues failed ({status}): {body}"
-                )));
+                return Err(scope_error("Board issues failed", status, &body));
             }
 
             let search: JiraLegacySearchResponse = resp
