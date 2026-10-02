@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+src-tauri/gen/
+src-tauri/target/
+.devin/
+.specify/
+specs/
+docs/INITIAL.md

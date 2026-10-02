@@ -1,0 +1,16 @@
+[
+  {
+    "key": "TPT-7042",
+    "summary": "Update Snowplow tracking",
+    "project": "E-commerce",
+    "status": "In Progress",
+    "priority": "High"
+  },
+  {
+    "key": "PRCM-2579",
+    "summary": "Checkout component update",
+    "project": "Funnels",
+    "status": "Review",
+    "priority": "Medium"
+  }
+]
