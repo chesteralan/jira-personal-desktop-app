@@ -102,6 +102,10 @@ export async function seedMockData(): Promise<string> {
   return invoke<string>("seed_mock_data");
 }
 
+export async function getAppVersion(): Promise<string> {
+  return invoke<string>("get_app_version");
+}
+
 // ── Auth commands ─────────────────────────────────────────────────────
 
 export interface ConnectInput {

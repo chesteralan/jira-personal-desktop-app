@@ -13,6 +13,8 @@ use infrastructure::database::Database;
 use sync::engine::SyncEngine;
 use tauri::Manager;
 use tracing::info;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 fn init_database(app: &tauri::App) -> Database {
@@ -28,15 +30,48 @@ fn init_database(app: &tauri::App) -> Database {
 /// Default background sync interval in seconds (5 minutes).
 const DEFAULT_SYNC_INTERVAL: u64 = 300;
 
+/// Application version from Cargo.toml (embedded at compile time).
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+    // Set up a global panic hook that logs the panic before aborting.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        tracing::error!("PANIC: {info}");
+        default_hook(info);
+    }));
+
+    // Determine log directory — use the platform's app-log directory if possible,
+    // otherwise fall back to the current directory.
+    let log_dir = dirs_next::data_dir()
+        .map(|d| d.join("com.petlabco.jirapersonal").join("logs"))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let _ = fs::create_dir_all(&log_dir);
+
+    // Daily rotating file appender.
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "jira-personal.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,hyper=warn"));
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(non_blocking),
         )
         .init();
 
-    info!("Starting Jira Personal");
+    info!("Starting Jira Personal v{APP_VERSION}");
+    info!("Logs directory: {}", log_dir.display());
+
+    // Keep the guard alive for the lifetime of the application so logs flush.
+    // We move it into the tauri run closure indirectly by holding it here.
+    let _log_guard = _guard;
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
@@ -109,6 +144,7 @@ pub fn run() {
             commands::save_preferences,
             commands::get_workspace_info,
             commands::seed_mock_data,
+            commands::get_app_version,
             commands::auth::jira_connect,
             commands::auth::jira_disconnect,
             commands::auth::jira_sync,

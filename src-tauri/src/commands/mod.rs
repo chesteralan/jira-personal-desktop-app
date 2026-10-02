@@ -96,6 +96,13 @@ pub fn get_workspace_info(db: State<'_, Arc<Database>>) -> Result<WorkspaceInfo,
     })
 }
 
+// ── Version command ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 // ── Seed command (development only) ─────────────────────────────────────
 
 #[tauri::command]

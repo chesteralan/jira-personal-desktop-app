@@ -36,6 +36,8 @@ async-trait = "0.1.92"
 open = "5"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-notification = "2"
+tracing-appender = "0.2"
+dirs-next = "2"
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

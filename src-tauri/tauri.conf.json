@@ -19,7 +19,10 @@
         "minWidth": 900,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "visible": true
       }
     ],
     "security": {
@@ -31,14 +34,25 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
+    "copyright": "Copyright 2025 PetLabCo",
     "shortDescription": "A focused personal Jira workspace",
-    "longDescription": "Jira Personal provides a fast, local-first view of the Jira work that needs your attention.",
+    "longDescription": "Jira Personal provides a fast, local-first view of the Jira work that needs your attention. Connect via API token or OAuth 2.0, sync issues automatically, manage boards, and perform quick actions — all from a lightweight desktop app.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "frameworks": [],
+      "exceptionDomain": ""
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
   }
 }

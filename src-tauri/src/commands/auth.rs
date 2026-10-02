@@ -33,11 +33,20 @@ pub async fn jira_connect(
     db: State<'_, Arc<Database>>,
     input: ConnectInput,
 ) -> Result<ConnectResult, AppError> {
-    let base_url = input.base_url.trim_end_matches('/').to_string();
+    let base_url = input.base_url.trim().trim_end_matches('/').to_string();
+    if base_url.is_empty() {
+        return Err(AppError::Validation("Jira URL is required".to_string()));
+    }
     if !base_url.starts_with("https://") {
-        return Err(AppError::Internal(
+        return Err(AppError::Validation(
             "Jira URL must start with https://".to_string(),
         ));
+    }
+    if input.email.trim().is_empty() {
+        return Err(AppError::Validation("Email is required".to_string()));
+    }
+    if input.api_token.trim().is_empty() {
+        return Err(AppError::Validation("API token is required".to_string()));
     }
 
     let client = JiraClient::new(&base_url, &input.email, &input.api_token)?;
