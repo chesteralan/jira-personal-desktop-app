@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Clock3, Database, Loader2, RefreshCw } from "lucide-react";
+import { Clock3, Database, Loader2, RefreshCw, WifiOff } from "lucide-react";
 import { Header } from "@/components/header";
 import { IssueCard } from "@/components/issue-card";
 import { useIssueStore } from "@/stores/issue-store";
@@ -12,9 +12,12 @@ export function TodayView(): React.JSX.Element {
   const refresh = useIssueStore((s) => s.refresh);
   const info = useWorkspaceStore((s) => s.info);
   const syncing = useWorkspaceStore((s) => s.syncing);
+  const syncState = useWorkspaceStore((s) => s.syncState);
+  const error = useWorkspaceStore((s) => s.error);
   const fetchInfo = useWorkspaceStore((s) => s.fetchInfo);
   const sync = useWorkspaceStore((s) => s.sync);
   const seedData = useWorkspaceStore((s) => s.seedData);
+  const clearError = useWorkspaceStore((s) => s.clearError);
 
   useEffect(() => {
     void refresh();
@@ -36,27 +39,56 @@ export function TodayView(): React.JSX.Element {
   };
 
   const isConnected = info.connectionStatus === "connected";
+  const isOffline = syncState === "offline";
   const needsAttention = counts.todo + counts.review;
 
   return (
     <main className="min-w-0 px-8 py-7">
       <Header userName={info.userDisplayName} />
 
+      {/* Offline banner */}
+      {isOffline ? (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-400">
+          <WifiOff size={16} />
+          <span>
+            Offline — showing cached data. Sync will resume when connected.
+          </span>
+        </div>
+      ) : null}
+
+      {/* Error banner */}
+      {error && !isOffline ? (
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span>{error}</span>
+          <button className="text-xs underline" onClick={clearError}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
       {/* Sync status bar */}
       <section
         aria-label="Synchronization status"
-        className="mt-7 flex items-center justify-between rounded-lg border bg-card px-4 py-3"
+        className="mt-4 flex items-center justify-between rounded-lg border bg-card px-4 py-3"
       >
         <div className="flex items-center gap-2 text-sm">
           <span
-            className={`size-2 rounded-full ${isConnected ? "bg-success" : "bg-muted-foreground"}`}
+            className={`size-2 rounded-full ${
+              isOffline
+                ? "bg-yellow-500"
+                : isConnected
+                  ? "bg-success"
+                  : "bg-muted-foreground"
+            }`}
           />
           <span className="font-medium">
-            {isConnected
-              ? "Connected to Jira"
-              : info.issueCount > 0
-                ? "Local cache ready"
-                : "Not connected"}
+            {isOffline
+              ? "Offline"
+              : isConnected
+                ? "Connected to Jira"
+                : info.issueCount > 0
+                  ? "Local cache ready"
+                  : "Not connected"}
           </span>
           {info.lastSyncedAt ? (
             <span className="text-muted-foreground">

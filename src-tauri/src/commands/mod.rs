@@ -1,5 +1,7 @@
 pub mod auth;
 
+use std::sync::Arc;
+
 use tauri::State;
 
 use crate::domain::issue::{IssueFilter, IssueView};
@@ -12,7 +14,7 @@ use crate::infrastructure::error::AppError;
 
 #[tauri::command]
 pub fn list_issues(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     filter: Option<IssueFilter>,
 ) -> Result<Vec<IssueView>, AppError> {
     let f = filter.unwrap_or_default();
@@ -20,12 +22,12 @@ pub fn list_issues(
 }
 
 #[tauri::command]
-pub fn get_issue(db: State<'_, Database>, key: String) -> Result<Option<IssueView>, AppError> {
+pub fn get_issue(db: State<'_, Arc<Database>>, key: String) -> Result<Option<IssueView>, AppError> {
     db.get_issue(&key)
 }
 
 #[tauri::command]
-pub fn get_issue_counts(db: State<'_, Database>) -> Result<IssueCounts, AppError> {
+pub fn get_issue_counts(db: State<'_, Arc<Database>>) -> Result<IssueCounts, AppError> {
     use crate::domain::issue::IssueStatus;
 
     let total = db.count_issues(None)?;
@@ -56,19 +58,19 @@ pub struct IssueCounts {
 // ── Preference commands ─────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn get_preferences(db: State<'_, Database>) -> Result<Preferences, AppError> {
+pub fn get_preferences(db: State<'_, Arc<Database>>) -> Result<Preferences, AppError> {
     db.load_preferences()
 }
 
 #[tauri::command]
-pub fn save_preferences(db: State<'_, Database>, prefs: Preferences) -> Result<(), AppError> {
+pub fn save_preferences(db: State<'_, Arc<Database>>, prefs: Preferences) -> Result<(), AppError> {
     db.save_preferences(&prefs)
 }
 
 // ── Workspace commands ──────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn get_workspace_info(db: State<'_, Database>) -> Result<WorkspaceInfo, AppError> {
+pub fn get_workspace_info(db: State<'_, Arc<Database>>) -> Result<WorkspaceInfo, AppError> {
     let issue_count = db.count_issues(None)?;
     let last_synced = db
         .get_workspace_meta("last_synced_at")?
@@ -95,7 +97,7 @@ pub fn get_workspace_info(db: State<'_, Database>) -> Result<WorkspaceInfo, AppE
 // ── Seed command (development only) ─────────────────────────────────────
 
 #[tauri::command]
-pub fn seed_mock_data(db: State<'_, Database>) -> Result<String, AppError> {
+pub fn seed_mock_data(db: State<'_, Arc<Database>>) -> Result<String, AppError> {
     use crate::domain::issue::{Issue, IssuePriority, IssueStatus};
     use chrono::{Duration, Utc};
 

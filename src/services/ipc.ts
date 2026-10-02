@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 // ── Domain types matching Rust serde output ─────────────────────────────
 
@@ -129,4 +130,23 @@ export async function jiraSync(): Promise<number> {
 
 export async function jiraRestoreSession(): Promise<boolean> {
   return invoke<boolean>("jira_restore_session");
+}
+
+// ── Sync events ─────────────────────────────────────────────────────
+
+export type SyncState = "idle" | "syncing" | "success" | "error" | "offline";
+
+export interface SyncStatus {
+  state: SyncState;
+  lastSyncedAt: string | null;
+  issueCount: number | null;
+  error: string | null;
+}
+
+export async function onSyncStatus(
+  handler: (status: SyncStatus) => void,
+): Promise<UnlistenFn> {
+  return listen<SyncStatus>("sync-status", (event) => {
+    handler(event.payload);
+  });
 }

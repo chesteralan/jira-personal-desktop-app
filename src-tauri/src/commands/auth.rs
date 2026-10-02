@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tauri::State;
 use tracing::info;
 
@@ -5,6 +7,7 @@ use crate::infrastructure::credentials::{self, JiraCredentials};
 use crate::infrastructure::database::Database;
 use crate::infrastructure::error::AppError;
 use crate::infrastructure::jira::client::JiraClient;
+use crate::sync::engine::SyncEngine;
 
 /// Input from the frontend connect form.
 #[derive(Debug, serde::Deserialize)]
@@ -27,7 +30,7 @@ pub struct ConnectResult {
 /// Connect to Jira: verify credentials, store in keychain, fetch issues.
 #[tauri::command]
 pub async fn jira_connect(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     input: ConnectInput,
 ) -> Result<ConnectResult, AppError> {
     let base_url = input.base_url.trim_end_matches('/').to_string();
@@ -68,7 +71,7 @@ pub async fn jira_connect(
 
 /// Disconnect from Jira: clear credentials and cached data.
 #[tauri::command]
-pub fn jira_disconnect(db: State<'_, Database>) -> Result<(), AppError> {
+pub fn jira_disconnect(db: State<'_, Arc<Database>>) -> Result<(), AppError> {
     credentials::clear_credentials()?;
     db.clear_issues()?;
     db.set_workspace_meta("user_display_name", "")?;
@@ -78,29 +81,30 @@ pub fn jira_disconnect(db: State<'_, Database>) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Sync: re-fetch issues using stored credentials.
+/// Sync: trigger background sync engine for an immediate cycle.
+/// Returns the current issue count after triggering.
 #[tauri::command]
-pub async fn jira_sync(db: State<'_, Database>) -> Result<u32, AppError> {
-    let creds = credentials::load_credentials()?
+pub async fn jira_sync(
+    db: State<'_, Arc<Database>>,
+    engine: State<'_, SyncEngine>,
+) -> Result<u32, AppError> {
+    credentials::load_credentials()?
         .ok_or_else(|| AppError::Internal("Not connected to Jira".to_string()))?;
 
-    let client = JiraClient::new(&creds.base_url, &creds.email, &creds.api_token)?;
-    let issues = client.fetch_my_issues().await?;
-    let count = issues.len() as u32;
+    engine.trigger_sync();
 
-    db.clear_issues()?;
-    for issue in &issues {
-        db.upsert_issue(issue)?;
-    }
-    db.set_workspace_meta("last_synced_at", &chrono::Utc::now().to_rfc3339())?;
-    info!("Synced {} issues", count);
-
+    // Give the sync a moment, then return current count.
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+    let count = db.count_issues(None)?;
     Ok(count)
 }
 
-/// Check if credentials exist and try to restore the session on startup.
+/// Check if credentials exist, restore the session, and trigger a background sync.
 #[tauri::command]
-pub async fn jira_restore_session(db: State<'_, Database>) -> Result<bool, AppError> {
+pub async fn jira_restore_session(
+    db: State<'_, Arc<Database>>,
+    engine: State<'_, SyncEngine>,
+) -> Result<bool, AppError> {
     let creds = credentials::load_credentials()?;
     let Some(creds) = creds else {
         return Ok(false);
@@ -112,6 +116,8 @@ pub async fn jira_restore_session(db: State<'_, Database>) -> Result<bool, AppEr
                 db.set_workspace_meta("user_display_name", &user.display_name)?;
                 db.set_workspace_meta("jira_base_url", &creds.base_url)?;
                 info!("Session restored for {}", user.display_name);
+                // Trigger background sync to refresh data.
+                engine.trigger_sync();
                 Ok(true)
             }
             Err(_) => Ok(false),

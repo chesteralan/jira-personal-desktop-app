@@ -5,8 +5,10 @@ pub mod infrastructure;
 pub mod sync;
 
 use std::fs;
+use std::sync::Arc;
 
 use infrastructure::database::Database;
+use sync::engine::SyncEngine;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -22,6 +24,9 @@ fn init_database(app: &tauri::App) -> Database {
 
 use tauri::Manager;
 
+/// Default background sync interval in seconds (5 minutes).
+const DEFAULT_SYNC_INTERVAL: u64 = 300;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -35,7 +40,15 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let db = init_database(app);
-            app.manage(db);
+            let db_arc = Arc::new(db);
+
+            // Share the Arc<Database> as managed state.
+            app.manage(db_arc.clone());
+
+            // Spawn background sync engine.
+            let engine = SyncEngine::spawn(app.handle().clone(), db_arc, DEFAULT_SYNC_INTERVAL);
+            app.manage(engine);
+
             info!("Application setup complete");
             Ok(())
         })

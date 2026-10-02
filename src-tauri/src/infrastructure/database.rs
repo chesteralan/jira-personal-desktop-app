@@ -278,6 +278,24 @@ impl Database {
         Ok(())
     }
 
+    /// List all issue keys currently in the database.
+    pub fn list_all_issue_keys(&self) -> Result<Vec<String>, AppError> {
+        let conn = self.conn.lock().expect("database lock poisoned");
+        let mut stmt = conn.prepare("SELECT key FROM issues")?;
+        let keys = stmt
+            .query_map([], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(keys)
+    }
+
+    /// Delete a single issue by its key.
+    pub fn delete_issue_by_key(&self, key: &str) -> Result<bool, AppError> {
+        let conn = self.conn.lock().expect("database lock poisoned");
+        let deleted = conn.execute("DELETE FROM issues WHERE key = ?1", [key])?;
+        Ok(deleted > 0)
+    }
+
     // ── Preferences ─────────────────────────────────────────────────────
 
     /// Load preferences, returning defaults if none are stored.
@@ -465,5 +483,29 @@ mod tests {
 
         db.clear_issues().unwrap();
         assert_eq!(db.count_issues(None).unwrap(), 0);
+    }
+
+    #[test]
+    fn list_all_issue_keys_returns_keys() {
+        let db = test_db();
+        db.upsert_issue(&sample_issue("TPT-10")).unwrap();
+        db.upsert_issue(&sample_issue("TPT-11")).unwrap();
+
+        let mut keys = db.list_all_issue_keys().unwrap();
+        keys.sort();
+        assert_eq!(keys, vec!["TPT-10", "TPT-11"]);
+    }
+
+    #[test]
+    fn delete_issue_by_key_removes_one() {
+        let db = test_db();
+        db.upsert_issue(&sample_issue("TPT-12")).unwrap();
+        db.upsert_issue(&sample_issue("TPT-13")).unwrap();
+
+        assert!(db.delete_issue_by_key("TPT-12").unwrap());
+        assert!(!db.delete_issue_by_key("TPT-99").unwrap());
+
+        let keys = db.list_all_issue_keys().unwrap();
+        assert_eq!(keys, vec!["TPT-13"]);
     }
 }

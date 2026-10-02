@@ -56,6 +56,11 @@ vi.mock("@tauri-apps/api/core", () => ({
   }),
 }));
 
+// Mock the Tauri event listener
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
+}));
+
 function renderApp(): void {
   render(
     <ThemeProvider>
@@ -67,10 +72,8 @@ function renderApp(): void {
 describe("App", () => {
   it("renders the sidebar and today view", async () => {
     renderApp();
-    // Sidebar brand
     expect(screen.getByText("Jira Personal")).toBeInTheDocument();
 
-    // Wait for async data load
     await waitFor(() => {
       expect(screen.getByText("TPT-7042")).toBeInTheDocument();
     });
@@ -80,7 +83,6 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
 
-    // Click "Settings" in the sidebar
     const settingsButton = screen.getByRole("button", { name: "Settings" });
     await user.click(settingsButton);
 
