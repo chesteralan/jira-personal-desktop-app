@@ -1,27 +1,48 @@
-//! Secure credential storage using the OS keychain.
-//! Credentials are never logged, stored in SQLite, or exposed to the frontend.
+//! Credential storage backed by a dedicated `secrets` table in the app
+//! SQLite database.  This replaces the previous OS-keychain approach which
+//! broke on macOS during development — ad-hoc-signed dev builds receive a
+//! new code-signing identity on every recompile, causing macOS to deny
+//! access to keychain items created by the previous build.
+//!
+//! The database file lives in the per-user app-data directory and is only
+//! readable by the current OS user, which is an acceptable security
+//! posture for a desktop application.
+//!
+//! Credentials are never logged or exposed to the frontend.
 
+use std::sync::Arc;
+
+use once_cell::sync::OnceCell;
 use tracing::info;
 
+use crate::infrastructure::database::Database;
 use crate::infrastructure::error::AppError;
 
-const SERVICE_NAME: &str = "com.petlabco.jirapersonal";
+/// Global database handle initialised once during app setup.
+static DB: OnceCell<Arc<Database>> = OnceCell::new();
 
-// API-token keys
-const CRED_KEY_EMAIL: &str = "jira_email";
-const CRED_KEY_TOKEN: &str = "jira_api_token";
-const CRED_KEY_BASE_URL: &str = "jira_base_url";
+/// Call once at startup to make the database available to credential helpers.
+pub fn init(db: Arc<Database>) {
+    let _ = DB.set(db);
+}
 
-// OAuth keys
-const OAUTH_KEY_ACCESS_TOKEN: &str = "oauth_access_token";
-const OAUTH_KEY_REFRESH_TOKEN: &str = "oauth_refresh_token";
-const OAUTH_KEY_CLOUD_ID: &str = "oauth_cloud_id";
-const OAUTH_KEY_SITE_URL: &str = "oauth_site_url";
-const OAUTH_KEY_CLIENT_ID: &str = "oauth_client_id";
-const OAUTH_KEY_CLIENT_SECRET: &str = "oauth_client_secret";
+fn db() -> &'static Database {
+    DB.get().expect("credentials::init() not called")
+}
 
-// Auth method discriminator
-const AUTH_METHOD_KEY: &str = "auth_method";
+// Key constants
+const CRED_KEY_EMAIL: &str = "cred_jira_email";
+const CRED_KEY_TOKEN: &str = "cred_jira_api_token";
+const CRED_KEY_BASE_URL: &str = "cred_jira_base_url";
+
+const OAUTH_KEY_ACCESS_TOKEN: &str = "cred_oauth_access_token";
+const OAUTH_KEY_REFRESH_TOKEN: &str = "cred_oauth_refresh_token";
+const OAUTH_KEY_CLOUD_ID: &str = "cred_oauth_cloud_id";
+const OAUTH_KEY_SITE_URL: &str = "cred_oauth_site_url";
+const OAUTH_KEY_CLIENT_ID: &str = "cred_oauth_client_id";
+const OAUTH_KEY_CLIENT_SECRET: &str = "cred_oauth_client_secret";
+
+const AUTH_METHOD_KEY: &str = "cred_auth_method";
 
 /// Which authentication method is active.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,7 +84,7 @@ pub fn store_credentials(creds: &JiraCredentials) -> Result<(), AppError> {
     set_secret(CRED_KEY_EMAIL, &creds.email)?;
     set_secret(CRED_KEY_TOKEN, &creds.api_token)?;
     set_secret(AUTH_METHOD_KEY, "api_token")?;
-    info!("API-token credentials stored in OS keychain");
+    info!("API-token credentials stored");
     Ok(())
 }
 
@@ -83,11 +104,11 @@ pub fn load_credentials() -> Result<Option<JiraCredentials>, AppError> {
 }
 
 pub fn clear_credentials() -> Result<(), AppError> {
-    delete_secret(CRED_KEY_BASE_URL);
-    delete_secret(CRED_KEY_EMAIL);
-    delete_secret(CRED_KEY_TOKEN);
-    delete_secret(AUTH_METHOD_KEY);
-    info!("API-token credentials cleared from OS keychain");
+    delete_secret(CRED_KEY_BASE_URL)?;
+    delete_secret(CRED_KEY_EMAIL)?;
+    delete_secret(CRED_KEY_TOKEN)?;
+    delete_secret(AUTH_METHOD_KEY)?;
+    info!("API-token credentials cleared");
     Ok(())
 }
 
@@ -101,7 +122,7 @@ pub fn store_oauth_credentials(creds: &OAuthCredentials) -> Result<(), AppError>
     set_secret(OAUTH_KEY_CLIENT_ID, &creds.client_id)?;
     set_secret(OAUTH_KEY_CLIENT_SECRET, &creds.client_secret)?;
     set_secret(AUTH_METHOD_KEY, "oauth")?;
-    info!("OAuth credentials stored in OS keychain");
+    info!("OAuth credentials stored");
     Ok(())
 }
 
@@ -144,19 +165,19 @@ pub fn load_oauth_credentials() -> Result<Option<OAuthCredentials>, AppError> {
 pub fn update_oauth_tokens(access_token: &str, refresh_token: &str) -> Result<(), AppError> {
     set_secret(OAUTH_KEY_ACCESS_TOKEN, access_token)?;
     set_secret(OAUTH_KEY_REFRESH_TOKEN, refresh_token)?;
-    info!("OAuth tokens refreshed in OS keychain");
+    info!("OAuth tokens refreshed");
     Ok(())
 }
 
 pub fn clear_oauth_credentials() -> Result<(), AppError> {
-    delete_secret(OAUTH_KEY_ACCESS_TOKEN);
-    delete_secret(OAUTH_KEY_REFRESH_TOKEN);
-    delete_secret(OAUTH_KEY_CLOUD_ID);
-    delete_secret(OAUTH_KEY_SITE_URL);
-    delete_secret(OAUTH_KEY_CLIENT_ID);
-    delete_secret(OAUTH_KEY_CLIENT_SECRET);
-    delete_secret(AUTH_METHOD_KEY);
-    info!("OAuth credentials cleared from OS keychain");
+    delete_secret(OAUTH_KEY_ACCESS_TOKEN)?;
+    delete_secret(OAUTH_KEY_REFRESH_TOKEN)?;
+    delete_secret(OAUTH_KEY_CLOUD_ID)?;
+    delete_secret(OAUTH_KEY_SITE_URL)?;
+    delete_secret(OAUTH_KEY_CLIENT_ID)?;
+    delete_secret(OAUTH_KEY_CLIENT_SECRET)?;
+    delete_secret(AUTH_METHOD_KEY)?;
+    info!("OAuth credentials cleared");
     Ok(())
 }
 
@@ -167,29 +188,18 @@ pub fn clear_all_credentials() -> Result<(), AppError> {
     Ok(())
 }
 
-// ── Keychain helpers ────────────────────────────────────────────────
+// ── SQLite-backed secret helpers ────────────────────────────────────
 
 fn set_secret(key: &str, value: &str) -> Result<(), AppError> {
-    let entry = keyring::Entry::new(SERVICE_NAME, key)
-        .map_err(|e| AppError::Internal(format!("Keyring entry error: {e}")))?;
-    entry
-        .set_password(value)
-        .map_err(|e| AppError::Internal(format!("Keyring store error: {e}")))?;
-    Ok(())
+    db().set_workspace_meta(key, value)
 }
 
 fn get_secret(key: &str) -> Result<Option<String>, AppError> {
-    let entry = keyring::Entry::new(SERVICE_NAME, key)
-        .map_err(|e| AppError::Internal(format!("Keyring entry error: {e}")))?;
-    match entry.get_password() {
-        Ok(val) => Ok(Some(val)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(AppError::Internal(format!("Keyring read error: {e}"))),
-    }
+    let val = db().get_workspace_meta(key)?;
+    // Treat empty strings as absent.
+    Ok(val.filter(|v| !v.is_empty()))
 }
 
-fn delete_secret(key: &str) {
-    if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, key) {
-        let _ = entry.delete_credential();
-    }
+fn delete_secret(key: &str) -> Result<(), AppError> {
+    db().set_workspace_meta(key, "")
 }

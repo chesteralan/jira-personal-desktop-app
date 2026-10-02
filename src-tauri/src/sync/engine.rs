@@ -30,7 +30,7 @@ impl SyncEngine {
         let trigger = Arc::new(Notify::new());
         let trigger_clone = trigger.clone();
 
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             sync_loop(app, db, interval_secs, trigger_clone).await;
         });
 
@@ -66,7 +66,10 @@ async fn run_sync_cycle(app: &AppHandle, db: &Database) {
     // Build a client from whichever auth method is active.
     let client = match make_active_client() {
         Ok(c) => c,
-        Err(_) => return, // No credentials — skip silently.
+        Err(e) => {
+            tracing::debug!("Sync skipped: {e}");
+            return; // No credentials — skip silently.
+        }
     };
 
     // Emit syncing status.

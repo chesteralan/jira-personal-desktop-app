@@ -29,6 +29,7 @@ export function App(): React.JSX.Element {
   const fetchInfo = useWorkspaceStore((s) => s.fetchInfo);
   const restoreSession = useWorkspaceStore((s) => s.restoreSession);
   const sync = useWorkspaceStore((s) => s.sync);
+  const loading = useWorkspaceStore((s) => s.loading);
   const refresh = useIssueStore((s) => s.refresh);
   const info = useWorkspaceStore((s) => s.info);
 
@@ -49,16 +50,16 @@ export function App(): React.JSX.Element {
     return () => unlisten?.();
   }, [restoreSession, fetchInfo]);
 
-  // Auto-sync on window focus when connected
+  // Auto-sync on window focus when connected (skip if a connection is in progress)
   useEffect(() => {
     const handler = (): void => {
-      if (info.connectionStatus === "connected") {
+      if (info.connectionStatus === "connected" && !loading) {
         void sync().then(() => refresh());
       }
     };
     window.addEventListener("focus", handler);
     return () => window.removeEventListener("focus", handler);
-  }, [info.connectionStatus, sync, refresh]);
+  }, [info.connectionStatus, loading, sync, refresh]);
 
   // Refresh issue list when sync status changes to success
   const syncState = useWorkspaceStore((s) => s.syncState);

@@ -65,7 +65,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     try {
       const result = await jiraConnect(input);
       const info = await getWorkspaceInfo();
-      set({ info, loading: false });
+      set({
+        info,
+        loading: false,
+        error: null,
+        syncState: "idle" as SyncState,
+      });
       return result;
     } catch (e) {
       set({ error: String(e), loading: false });
@@ -78,7 +83,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     try {
       const result = await oauthStart(input);
       const info = await getWorkspaceInfo();
-      set({ info, loading: false });
+      set({
+        info,
+        loading: false,
+        error: null,
+        syncState: "idle" as SyncState,
+      });
       return result;
     } catch (e) {
       set({ error: String(e), loading: false });

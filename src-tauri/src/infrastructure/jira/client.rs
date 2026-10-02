@@ -5,7 +5,10 @@ use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYP
 use reqwest::Client;
 use tracing::{debug, info};
 
-use super::types::{JiraBoardListResponse, JiraSearchResponse, JiraTransitionsResponse, JiraUser};
+use super::types::{
+    JiraBoardListResponse, JiraLegacySearchResponse, JiraSearchResponse, JiraTransitionsResponse,
+    JiraUser,
+};
 use crate::domain::board::{Board, IssueTransition};
 use crate::domain::issue::{Issue, IssuePriority, IssueStatus};
 use crate::infrastructure::error::AppError;
@@ -102,22 +105,25 @@ impl JiraClient {
         Ok(user)
     }
 
-    /// Fetch issues assigned to the current user. Handles pagination.
+    /// Fetch issues assigned to the current user. Uses the enhanced
+    /// `/rest/api/3/search/jql` endpoint with token-based pagination.
     pub async fn fetch_my_issues(&self) -> Result<Vec<Issue>, AppError> {
         let jql = "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC";
         let mut all_issues = Vec::new();
-        let mut start_at: u32 = 0;
         let page_size: u32 = 50;
+        let mut next_page_token: Option<String> = None;
 
         loop {
-            let url = format!(
-                "{}/rest/api/3/search?jql={}&startAt={}&maxResults={}&fields={}",
+            let mut url = format!(
+                "{}/rest/api/3/search/jql?jql={}&maxResults={}&fields={}",
                 self.base_url,
                 urlencoded(jql),
-                start_at,
                 page_size,
                 SEARCH_FIELDS,
             );
+            if let Some(ref token) = next_page_token {
+                url.push_str(&format!("&nextPageToken={}", urlencoded(token)));
+            }
             debug!("GET {url}");
 
             let resp = self
@@ -125,7 +131,7 @@ impl JiraClient {
                 .get(&url)
                 .send()
                 .await
-                .map_err(|e| AppError::Internal(format!("Network error: {e}")))?;
+                .map_err(|e| AppError::Network(format!("Network error: {e}")))?;
 
             if !resp.status().is_success() {
                 let status = resp.status();
@@ -144,11 +150,10 @@ impl JiraClient {
                 all_issues.push(jira_issue_to_domain(ji, &self.base_url));
             }
 
-            let fetched = start_at + search.issues.len() as u32;
-            if fetched >= search.total {
+            if search.is_last.unwrap_or(true) || search.next_page_token.is_none() {
                 break;
             }
-            start_at = fetched;
+            next_page_token = search.next_page_token;
         }
 
         info!("Fetched {} issues from Jira", all_issues.len());
@@ -241,7 +246,7 @@ impl JiraClient {
                 )));
             }
 
-            let search: JiraSearchResponse = resp
+            let search: JiraLegacySearchResponse = resp
                 .json()
                 .await
                 .map_err(|e| AppError::Internal(format!("Failed to parse board issues: {e}")))?;

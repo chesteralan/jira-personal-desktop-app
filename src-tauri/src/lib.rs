@@ -99,6 +99,9 @@ pub fn run() {
             let db = init_database(app);
             let db_arc = Arc::new(db);
 
+            // Make the database available to the credential store.
+            infrastructure::credentials::init(db_arc.clone());
+
             // Share the Arc<Database> as managed state.
             app.manage(db_arc.clone());
 

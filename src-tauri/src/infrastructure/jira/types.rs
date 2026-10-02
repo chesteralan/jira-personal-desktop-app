@@ -13,11 +13,24 @@ pub struct JiraUser {
     pub active: bool,
 }
 
-/// GET /rest/api/3/search (paginated wrapper)
+/// GET /rest/api/3/search/jql (enhanced search — paginated via nextPageToken)
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JiraSearchResponse {
+    pub issues: Vec<JiraIssue>,
+    #[serde(default)]
+    pub is_last: Option<bool>,
+    #[serde(default)]
+    pub next_page_token: Option<String>,
+}
+
+/// Legacy search response used by the Agile board-issue endpoint which
+/// still returns `startAt` / `total` pagination.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JiraLegacySearchResponse {
     pub start_at: u32,
+    #[allow(dead_code)]
     pub max_results: u32,
     pub total: u32,
     pub issues: Vec<JiraIssue>,
